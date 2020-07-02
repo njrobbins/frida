@@ -19,6 +19,7 @@ cap.set(10,150)
 def main():
     count_interest_lost = 0
     frame_counter = 0 #may use a fall_frame counter for delay; lower chance for false positive.
+    fall_detected = False #used to make sure that it only prints the FALL DETECTED warning the frame the fall is detected, rather than each frame
     while True: #Infinite loop, camera feed runs infinitely
         try:
             success,img = cap.read()
@@ -44,9 +45,24 @@ def main():
 
 
             cv2.imshow("Video",img)
-            if cv2.waitKey(1)&0xFF == ord('q'): #q key will end camera feed. Can change to optimize.
+            key = cv2.waitKey(1)&0xFF
+            if key == ord('q'): #q key will end camera feed. Can change to optimize.
                 cap.release()
                 cv2.destoryAllWindows()
+
+            #f key will simulate the beginning and end frames of a detected fall
+            #Once actual fall detection is in place, we can replace this elif block with something like
+        #   if not fall_detected and <condition indicating a fall>:
+        #       fall_detected = True
+        #       print("FALL DETECTED")
+        #   elif fall_detected and not <condition indicating a fall>:
+        #       fall_detected = False
+            elif key == ord('f'):
+                if fall_detected == True:
+                    fall_detected = False
+                else:
+                    fall_detected = True
+                    print("FALL DETECTED")
         except:
             print("Face Detected. Video Feed Ended.")
             sys.exit()
