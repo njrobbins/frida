@@ -48,7 +48,7 @@ else:
         try:
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
             fgmask = fgbg.apply(gray)
-            contours, _ = cv2.findContours(fgmask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)  # Find contours
+            _, contours, _ = cv2.findContours(fgmask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)  # Find contours
 
             if contours:
                 areas = []  # A list to hold all the areas
