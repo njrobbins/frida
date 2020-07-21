@@ -8,35 +8,41 @@ import cv2
 import time
 import caffe2.python.onnx.backend as backend
 import numpy.random
-
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.preprocessing import minmax_scale
+from sklearn.utils.extmath import softmax
 
 print(cv2.__version__)
 
 
 import onnx
 import numpy as np
-print(onnx)
+print(onnx.__version__)
 
 import onnxruntime as rt
-#print("onnxruntime: ", rt.__version__)
+print("onnxruntime: ", rt.__version__)
 #import onnxruntime as rt
 from onnx import numpy_helper
 import torch
 import torchvision
+import onnxruntime as ort
+threshold=0.1
+interval=2
+duration=40
 
 onnx_model = onnx.load('model.onnx')
 
 
 model =cv2.dnn.readNetFromONNX('model.onnx')
 
-dummy_input = torch.randn(10, 3, 224, 224, device='cpu')
+'''dummy_input = torch.randn(10, 3, 224, 224, device='cpu')'''
 
 
 
-import onnxruntime as ort
-sess = ort.InferenceSession('model.onnx')
 
-print(sess)
+
+
+'''print(sess)
 print("The model expects input shape: ", sess.get_inputs()[0].shape)
 
 input_name = sess.get_inputs()[0].name
@@ -55,7 +61,7 @@ print("output type", output_type)
 
 x = numpy.random.random((32, 3, 256, 224))
 x = x.astype(numpy.float32)
-res = sess.run(None, {input_name: x})
+res = sess.run(None, {input_name: x})'''
 
 '''print("predict", res[0][:])
 print("predict_proba", res[1][:1])
@@ -68,6 +74,8 @@ predictions = outputTensor.data
 maxPrediction = max(predictions)
 print(maxPred)'''
 
+sess = ort.InferenceSession('model.onnx')
+input_name = sess.get_inputs()[0].name
 
 batch_size = 32
 batch = []
@@ -125,10 +133,19 @@ while True:
     resized = cv2.resize(frame, dim, interpolation = cv2.INTER_AREA)
     frames = np.expand_dims(resized, axis=0)
     frames = np.array(frames)
+    frames = frames.astype(numpy.float32)
+    #frames *= 255.0/frames.max()
+
     image = torch.from_numpy(frames)
 
     image = image.permute(0, 3, 1, 2)
+
+
     result = np.array(image)
+    #shape = result.shape
+    #result = minmax_scale(result.ravel(), feature_range=(0,1)).reshape(shape)
+
+
 
 
 
@@ -149,12 +166,23 @@ while True:
 
 
 
+            x = result
 
-
-            x = result.astype(numpy.float32)
+            #x = result.astype(numpy.float32)
+            #x *= 255.0/x.max()
+            #x /= x.max()/255.0
+            #y =  numpy.linalg.norm(x, ord=3.5, axis=2, keepdims=True)
+            #x = x/y
             res = sess.run(None, {input_name: x })
+            #norm = softmax(res[0])
+            #y =  numpy.linalg.norm(x, ord=3.5, axis=2, keepdims=True)
+            norm = softmax(res[0])
 
-            print("predict", res)
+            #norm =  norm/numpy.linalg.norm(norm, ord=2, axis=1, keepdims=True)
+
+
+
+            print("predict", np.round(norm, decimals=3))
             batch = []
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
