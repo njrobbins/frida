@@ -41,7 +41,7 @@ model = FDNet()
 model.load_state_dict(torch.load("C:/Users/A/Desktop/main-fri/frida/Fall-Detection-PyTorch/train_model/fdnet.pt", map_location=torch.device('cpu')))
 print("we eval?")
 model.eval()
-input = torch.randn(32, 3, 256, 224, requires_grad=True)
+input = torch.randn(32, 1, 128, 128, requires_grad=True)
 output = model(input)
 torch_out = torch.onnx._export(model, input, "model.onnx", export_params=True, do_constant_folding=True)
 

@@ -30,6 +30,13 @@ threshold=0.1
 interval=2
 duration=40
 
+import os
+
+import json
+import cv2
+
+
+
 onnx_model = onnx.load('model.onnx')
 
 
@@ -125,32 +132,66 @@ frameCount = 0  # Used to delay fall detection to prevent false positives
     #     print("Thank you. Webcam confirmed.")
     # else:
     #     print("ERROR. INPUT MUST BE 0 OR 1.")
+
+
+count_frame = 0
 while True:
+    count_frame += 1
     ret, frame = camera.read()
-    # Reads video frames
+    img2 = np.zeros_like(frame)
+    frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+
+    img2[:,:,0] = frame
+    img2[:,:,1] = frame
+    img2[:,:,2] = frame
+    frame = img2
     dim = (224, 256)
+    dims = (256, 224, 3)
+
+    mhi_zeros = np.zeros(dims)
+
+
+    if(count_frame == 1):
+        prev_frame  = cv2.resize(frame, dim, interpolation = cv2.INTER_AREA)
+        prev_mhi = mhi_zeros
+
+    else:
+        resized = cv2.resize(frame, dim, interpolation = cv2.INTER_AREA)
+        diff = cv2.absdiff(prev_frame, resized)
+        binary = (diff >= (.1 * 255)).astype(np.uint8)
+
+        mhi = binary + (binary == 0) * np.maximum(mhi_zeros,
+                                                      (prev_mhi - 1/40))
+
+        prev_frame = resized
+        prev_mhi = mhi
+
+        img2 = mhi
+
+
+
+
+
+
+    # Reads video frames
+
     # resize image
-    resized = cv2.resize(frame, dim, interpolation = cv2.INTER_AREA)
-    frames = np.expand_dims(resized, axis=0)
+
+    #resized = cv2.normalize(resized, None, 0.0, 255.0, cv2.NORM_MINMAX)
+    img2 = cv2.resize(img2, dim, interpolation = cv2.INTER_AREA)
+    frames = np.expand_dims(img2, axis=0)
+
     frames = np.array(frames)
     frames = frames.astype(numpy.float32)
     #frames *= 255.0/frames.max()
 
     image = torch.from_numpy(frames)
 
+
     image = image.permute(0, 3, 1, 2)
-
-
     result = np.array(image)
-    #shape = result.shape
-    #result = minmax_scale(result.ravel(), feature_range=(0,1)).reshape(shape)
 
 
-
-
-
-    #a = np.array(a)[indices.astype(int)]
-    #a.reshape(a, (1,3,480,640))
 
     try:
         if( len(batch) != 32):
@@ -162,27 +203,26 @@ while True:
 
 
         if(len(batch) == 32):
+
+
             result = np.concatenate(batch, axis=0)
 
 
 
             x = result
 
-            #x = result.astype(numpy.float32)
-            #x *= 255.0/x.max()
-            #x /= x.max()/255.0
-            #y =  numpy.linalg.norm(x, ord=3.5, axis=2, keepdims=True)
-            #x = x/y
             res = sess.run(None, {input_name: x })
-            #norm = softmax(res[0])
-            #y =  numpy.linalg.norm(x, ord=3.5, axis=2, keepdims=True)
+
+
             norm = softmax(res[0])
 
-            #norm =  norm/numpy.linalg.norm(norm, ord=2, axis=1, keepdims=True)
+
 
 
 
             print("predict", np.round(norm, decimals=3))
+            print(norm.shape)
+
             batch = []
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
@@ -216,14 +256,15 @@ while True:
                 frameCount += 1
 
             if frameCount > 75:  # After ~2 seconds (at 30 fps) of being fallen down; will need to be optimized
-                print("FALL DETECTED")  # Prints this every time a fall is detected
+                #print("FALL DETECTED")  # Prints this every time a fall is detected
+                pass
 
             if h > w:
                 cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0),
                               2)  # Puts green rectangle around detected object
                 frameCount = 0
 
-            cv2.imshow("Video Feed", frame)  # Loads video feed window
+            cv2.imshow("Video Feed", img2)  # Loads video feed window
 
             key = cv2.waitKey(1) & 0xFF
             if key == ord('q'):  # Press 'q' to terminate video feed
