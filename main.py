@@ -6,34 +6,35 @@ Contributors: Jonah Falk, Samuel Pete, Normandy River, Niko Robbins, Jacob Schmo
 
 import cv2
 import time
-import caffe2.python.onnx.backend as backend
+
 import numpy.random
-from sklearn.preprocessing import MinMaxScaler
-from sklearn.preprocessing import minmax_scale
+
 from sklearn.utils.extmath import softmax
 
+
 print(cv2.__version__)
+import tensorflow as tf
+print("tf ", tf.__version__)
 
 
 import onnx
 import numpy as np
 print(onnx.__version__)
 
+
 import onnxruntime as rt
 print("onnxruntime: ", rt.__version__)
-#import onnxruntime as rt
-from onnx import numpy_helper
+
 import torch
+
 import torchvision
+print("torchvision ", torchvision.__version__)
 import onnxruntime as ort
-threshold=0.1
-interval=2
-duration=40
+
 
 import os
 
-import json
-import cv2
+
 
 
 
@@ -42,44 +43,6 @@ onnx_model = onnx.load('model.onnx')
 
 model =cv2.dnn.readNetFromONNX('model.onnx')
 
-'''dummy_input = torch.randn(10, 3, 224, 224, device='cpu')'''
-
-
-
-
-
-
-'''print(sess)
-print("The model expects input shape: ", sess.get_inputs()[0].shape)
-
-input_name = sess.get_inputs()[0].name
-print("input name", input_name)
-input_shape = sess.get_inputs()[0].shape
-print("input shape", input_shape)
-input_type = sess.get_inputs()[0].type
-print("input type", input_type)
-
-output_name = sess.get_outputs()[0].name
-print("output name", output_name)
-output_shape = sess.get_outputs()[0].shape
-print("output shape", output_shape)
-output_type = sess.get_outputs()[0].type
-print("output type", output_type)
-
-x = numpy.random.random((32, 3, 256, 224))
-x = x.astype(numpy.float32)
-res = sess.run(None, {input_name: x})'''
-
-'''print("predict", res[0][:])
-print("predict_proba", res[1][:1])
-print(res)
-print("predict_proba", res[0][:1])
-print(res)
-print("predict_proba", res[0][:1])
-outputTensor = res.values().next().value
-predictions = outputTensor.data
-maxPrediction = max(predictions)
-print(maxPred)'''
 
 sess = ort.InferenceSession('model.onnx')
 input_name = sess.get_inputs()[0].name
@@ -88,21 +51,19 @@ batch_size = 32
 batch = []
 
 
-#session = rt.InferenceSession('model.onnx')
-#input_name = session.get_inputs()[0].name
-#print(input_name)
-#output_name = session.get_outputs()[0].name
-#print(output_name)
+
 
 cameraPort = 0  # 0 is system's default webcam. 1 is an external webcam. -1 is auto-detection.
 # cameraPort = input("What kind of webcam are you using?\nEnter 0 for a built-in webcam.\nEnter 1 for an external webcam.\n")
 # print("Loading...")
-camera = cv2.VideoCapture(cameraPort)  # Initiates video stream
+camera = cv2.VideoCapture()  # Initiates video stream and use to input mp4 to test
+camera.set(cv2.CAP_PROP_FPS, 32) #set frames per second
 videoBrightness = 150
 camera.set(10, videoBrightness)
 time.sleep(1)  # Gives the camera's auto-focus & auto-saturation time to load
-fgbg = cv2.createBackgroundSubtractorMOG2()  # Initiates a background subtraction/foreground detection process
+
 frameCount = 0  # Used to delay fall detection to prevent false positives
+
 
 
 
@@ -134,12 +95,27 @@ frameCount = 0  # Used to delay fall detection to prevent false positives
     #     print("ERROR. INPUT MUST BE 0 OR 1.")
 
 
+
+color = np.random.randint(0,255,(100,3))
+
 count_frame = 0
+frame_counter = 0
 while True:
-    count_frame += 1
     ret, frame = camera.read()
+
+    count_frame +=1
+
+
+
+
+
+
+
+
+    frame_x = frame
     img2 = np.zeros_like(frame)
-    frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    frame = cv2.cvtColor(np.array(frame), cv2.COLOR_BGR2GRAY)
+
 
     img2[:,:,0] = frame
     img2[:,:,1] = frame
@@ -152,16 +128,19 @@ while True:
 
 
     if(count_frame == 1):
-        prev_frame  = cv2.resize(frame, dim, interpolation = cv2.INTER_AREA)
+
+        prev_frame  = cv2.resize(frame, dim, interpolation = cv2.INTER_AREA )
         prev_mhi = mhi_zeros
 
     else:
-        resized = cv2.resize(frame, dim, interpolation = cv2.INTER_AREA)
+        resized = cv2.resize(frame, dim, interpolation = cv2.INTER_AREA )
         diff = cv2.absdiff(prev_frame, resized)
-        binary = (diff >= (.1 * 255)).astype(np.uint8)
+
+        binary = (diff >= (.4 * 255)).astype(np.uint8)
+
 
         mhi = binary + (binary == 0) * np.maximum(mhi_zeros,
-                                                      (prev_mhi - 1/40))
+                                                      (prev_mhi-1/32))
 
         prev_frame = resized
         prev_mhi = mhi
@@ -173,29 +152,39 @@ while True:
 
 
 
-    # Reads video frames
 
-    # resize image
-
-    #resized = cv2.normalize(resized, None, 0.0, 255.0, cv2.NORM_MINMAX)
     img2 = cv2.resize(img2, dim, interpolation = cv2.INTER_AREA)
     frames = np.expand_dims(img2, axis=0)
 
     frames = np.array(frames)
     frames = frames.astype(numpy.float32)
-    #frames *= 255.0/frames.max()
+
 
     image = torch.from_numpy(frames)
 
 
     image = image.permute(0, 3, 1, 2)
+
+    #This is for the append current frame to next frame
+    #if(count_frame == 1):
+     #   result = np.array(image)
+    #elif(count_frame > 1 and count_frame %2 == 0):
+     #   result = np.array(image)
+
+     #this is for normal use current frame then empty and take next frame
     result = np.array(image)
 
 
 
+
+
     try:
+
         if( len(batch) != 32):
-            batch.append(result)
+                batch.append(result)
+
+
+
         if(len(batch) > 32):
             batch = batch[:32]
             batch = np.array(batch)
@@ -205,14 +194,16 @@ while True:
         if(len(batch) == 32):
 
 
-            result = np.concatenate(batch, axis=0)
+
+            result_x = np.concatenate(batch, axis=0)
 
 
 
-            x = result
+            x = result_x
+
+
 
             res = sess.run(None, {input_name: x })
-
 
             norm = softmax(res[0])
 
@@ -220,58 +211,41 @@ while True:
 
 
 
-            print("predict", np.round(norm, decimals=3))
-            print(norm.shape)
 
+            for x in norm:
+                fall = x.item(0)
+                not_fall = x.item(1)
+
+
+
+
+                print("predict", np.round(fall, decimals=3), np.round(not_fall, decimals=3))
+                if(fall > not_fall):
+                    print("fall detected")
+                    batch = []
+                    break
+
+                # here we are testing the appending of current frame to next frame
+            #batch = batch[31:15:-1]
+            #predict 0.516 0.484
+
+
+            #here we are doing just the regular current frame and then next frame is its own frame as well
             batch = []
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-
-        fgmask = fgbg.apply(gray)
-        #below is for opencv  4
-        contours, hierarchy = cv2.findContours(fgmask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)  # Find contours
+            #predict 0.52 0.48
 
 
+        cv2.imshow("Video Feed", img2)
 
-        #below is for opencv under 4
-        #_, contours, _ = cv2.findContours(fgmask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)  # Find contours
 
-        if contours:
-            areas = []  # A list to hold all the areas
 
-            for contour in contours:
-                ar = cv2.contourArea(contour)  # Calculate the area of each contour
-                areas.append(ar)
 
-            max_area = max(areas, default=0)
-            max_area_index = areas.index(max_area)
-            cnt = contours[max_area_index]
-            M = cv2.moments(cnt)  # Calculates moments of detected binary image
-            x, y, w, h = cv2.boundingRect(cnt)  # Calculates an upright bounding rectangle
-
-            cv2.drawContours(fgmask, [cnt], 0, (255, 255, 255), 3, maxLevel=0)
-
-            if h < w:
-                cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 0, 255),
-                              2)  # Puts red rectangle around fallen object
-                frameCount += 1
-
-            if frameCount > 75:  # After ~2 seconds (at 30 fps) of being fallen down; will need to be optimized
-                #print("FALL DETECTED")  # Prints this every time a fall is detected
-                pass
-
-            if h > w:
-                cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0),
-                              2)  # Puts green rectangle around detected object
-                frameCount = 0
-
-            cv2.imshow("Video Feed", img2)  # Loads video feed window
-
-            key = cv2.waitKey(1) & 0xFF
-            if key == ord('q'):  # Press 'q' to terminate video feed
-                print("VIDEO FEED TERMINATED")
-                camera.release()
-                cv2.destroyAllWindows()
-                break
+        key = cv2.waitKey(1) & 0xFF
+        if key == ord('q'):  # Press 'q' to terminate video feed
+            print("VIDEO FEED TERMINATED")
+            camera.release()
+            cv2.destroyAllWindows()
+            break
     except Exception as e:
         print(e)# Can be edited
         break
