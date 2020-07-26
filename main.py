@@ -56,7 +56,11 @@ batch = []
 cameraPort = 0  # 0 is system's default webcam. 1 is an external webcam. -1 is auto-detection.
 # cameraPort = input("What kind of webcam are you using?\nEnter 0 for a built-in webcam.\nEnter 1 for an external webcam.\n")
 # print("Loading...")
-camera = cv2.VideoCapture()  # Initiates video stream and use to input mp4 to test
+#use this for accessing live video feed
+camera = cv2.VideoCapture(cameraPort)  # Initiates video stream and use to input mp4 to test
+
+#use this when using video input and change cameraPort to name of video file and the extension so nameofvideofile.mp4 for example
+#camera = cv2.VideoCapture(cameraPort)
 camera.set(cv2.CAP_PROP_FPS, 32) #set frames per second
 videoBrightness = 150
 camera.set(10, videoBrightness)
@@ -114,7 +118,10 @@ while True:
 
     frame_x = frame
     img2 = np.zeros_like(frame)
-    frame = cv2.cvtColor(np.array(frame), cv2.COLOR_BGR2GRAY)
+    #use for video input
+    #frame = cv2.cvtColor(np.array(frame), cv2.COLOR_BGR2GRAY)
+    #use for live video access
+    frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
 
     img2[:,:,0] = frame
