@@ -11,29 +11,66 @@ import sys
 import threading
 import time
 
-done = False  # Program hasn't yet loaded video
+import numpy.random
+
+from sklearn.utils.extmath import softmax
 
 
-def animate():
-    for c in itertools.cycle(['|', '/', '-', '\\']):
-        if done:
-            break
-        sys.stdout.write('\rLoading ' + c)
-        sys.stdout.flush()
-        time.sleep(0.1)
-    sys.stdout.write('\rFRIDA software loaded.\n')
+print(cv2.__version__)
+import tensorflow as tf
+print("tf ", tf.__version__)
 
 
-t = threading.Thread(target=animate)  # Ties thread to animate()
-t.start()  # Starts threading process
-camera = cv2.VideoCapture(0, cv2.CAP_DSHOW)  # Initiates live video stream; comment out if using video file option
-# camera = cv2.VideoCapture("file.mov")  # Option to instead use video file input; replace "file.mov" with video file
-camera.set(10, 150)  # Sets brightness
+import onnx
+import numpy as np
+print(onnx.__version__)
+
+
+import onnxruntime as rt
+print("onnxruntime: ", rt.__version__)
+
+import torch
+
+import torchvision
+print("torchvision ", torchvision.__version__)
+import onnxruntime as ort
+
+
+import os
+
+
+
+
+
+onnx_model = onnx.load('model.onnx')
+
+
+model =cv2.dnn.readNetFromONNX('model.onnx')
+
+
+sess = ort.InferenceSession('model.onnx')
+input_name = sess.get_inputs()[0].name
+
+batch_size = 32
+batch = []
+condense_batch = []
+
+
+
+
+cameraPort = 0  # 0 is system's default webcam. 1 is an external webcam. -1 is auto-detection.
+# cameraPort = input("What kind of webcam are you using?\nEnter 0 for a built-in webcam.\nEnter 1 for an external webcam.\n")
+# print("Loading...")
+#use this for accessing live video feed
+camera = cv2.VideoCapture('fallcam1/fall30cam1.mp4')  # Initiates video stream and use to input mp4 to test
+
+#use this when using video input and change cameraPort to name of video file and the extension so nameofvideofile.mp4 for example
+#camera = cv2.VideoCapture(cameraPort)
+camera.set(cv2.CAP_PROP_FPS, 32) #set frames per second
+videoBrightness = 150
+camera.set(10, videoBrightness)
 time.sleep(1)  # Gives the camera's auto-focus & auto-saturation time to load
-fgbg = cv2.createBackgroundSubtractorMOG2()  # Initiates a background subtraction/foreground detection process
 
-detectionTest = 0  # Used to keep track of successful detection
-firstFrame = None  # Used as the initial background frame
 frameCount = 0  # Used to delay fall detection to prevent false positives
 HUD = 1  # Heads Up Display; set to 0 to turn off
 minArea = 50 * 50  # Minimum to accepted as a person; can be optimized
@@ -42,96 +79,210 @@ movementState = "Not Moving"  # Starts out assuming person is standing still
 personDetected = 0  # Track amount of frames detected
 percentageDetected = 0  # Percentage of frames person is detected
 
-if not camera.isOpened():
-    raise IOError("CANNOT OPEN WEBCAM")
 
+
+
+#if not camera.isOpened():
+    # if int(cameraPort) == 0:
+    #     try:
+    #         camera = cv2.VideoCapture(1)
+    #     except:
+    #         camera = cv2.VideoCapture(-1)
+    #         if not camera.isOpened():
+    #             print("WEBCAM NOT DETECTED")
+    # elif int(cameraPort) == 1:
+    #     try:
+    #         camera = cv2.VideoCapture(1)
+    #     except:
+    #         camera = cv2.VideoCapture(-1)
+    #         if not camera.isOpened():
+    #             print("WEBCAM NOT DETECTED")
+    # else:
+    #     print("ERROR. INPUT MUST BE 0 OR 1.")
+
+        #print("WEBCAM NOT DETECTED")
+
+#else:
+    # Returns confirmation to user if valid or error if invalid
+    # if int(cameraPort) == 0 or int(cameraPort) == 1:
+    #     print("Thank you. Webcam confirmed.")
+    # else:
+    #     print("ERROR. INPUT MUST BE 0 OR 1.")
+
+
+
+color = np.random.randint(0,255,(100,3))
+
+count_frame = 0
+frame_counter = 0
+last_frame = 0
 while True:
-    grabbed, frame = camera.read()  # Reads video frames
-    if not grabbed:
-        break
+    ret, frame = camera.read()
+
+
+
+    count_frame +=1
+
+
+
+
+
+
+
+
+
+    frame_x = frame
+    img2 = np.zeros_like(frame)
+    #use for video input
+    frame = cv2.cvtColor(np.array(frame), cv2.COLOR_BGR2GRAY)
+    #use for live video access
+    #frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+
+
+    img2[:,:,0] = frame
+    img2[:,:,1] = frame
+    img2[:,:,2] = frame
+    frame = img2
+
+    dim = (224, 256)
+    dims = (256, 224, 3)
+
+    mhi_zeros = np.zeros(dims)
+
+
+    if(count_frame == 1):
+
+        prev_frame  = cv2.resize(frame, dim, interpolation = cv2.INTER_AREA )
+        prev_mhi = mhi_zeros
+
+    else:
+        resized = cv2.resize(frame, dim, interpolation = cv2.INTER_AREA )
+        diff = cv2.absdiff(prev_frame, resized)
+
+        binary = (diff >= (.41 * 255)).astype(np.uint8)
+
+
+        mhi = binary + (binary == 0) * np.maximum(mhi_zeros,
+                                                      (prev_mhi-1/16))
+
+        prev_frame = resized
+        prev_mhi = mhi
+
+        img2 = mhi
+
+
+
+
+
+
+
+    img2 = cv2.resize(img2, dim, interpolation = cv2.INTER_AREA)
+    frames = np.expand_dims(img2, axis=0)
+
+
+    frames = np.array(frames)
+    frames = frames.astype(numpy.float32)
+
+
+    image = torch.from_numpy(frames)
+
+
+
+    image = image.permute(0, 3, 1, 2)
+
+
+
+  #This is for the append current frame to next frame lines 185 to 192
+  #if(count_frame == 1):
+            #result = np.array(image)
+
+    #elif(count_frame > 1 and count_frame %2 == 0):
+        #result = np.array(image)
+
+    #condense = np.array(image)'''
+
+
+
+
+     #this is for normal use current frame then empty and take next frame
+    result = np.array(image)
+
+
+
+
 
     try:
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        fgmask = fgbg.apply(gray)
 
-        # Updates every time light conditions change
-        if firstFrame is None:
-            time.sleep(1)
-            grabbed, frame = camera.read()
-            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-            fgmask = fgbg.apply(gray)
-            firstFrame = gray
-            continue
+        if( len(batch) != 32):
+                batch.append(result)
 
-        # Compares difference between the current frame and background frame
-        frameDelta = cv2.absdiff(firstFrame, gray)
-        thresh = cv2.threshold(frameDelta, 50, 255, cv2.THRESH_BINARY)[1]
-        thresh = cv2.dilate(thresh, None, iterations=30)
-        contours, _ = cv2.findContours(thresh.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)  # Find contours
-        # _, contours, _ = cv2.findContours(thresh.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)  # Use with OpenCV version <4
+                #only used for condensed-spaced model
+                #condense_batch.append(condense)
 
-        detectStatus = "Idle"
-        areas = []
-        for contour in contours:
-            if cv2.contourArea(contour) < minArea:
-                continue
-            ar = cv2.contourArea(contour)  # Calculate the area of each contour
-            areas.append(ar)
-            max_area = max(areas, default=0)
-            max_area_index = areas.index(max_area)
-            cnt = contours[max_area_index]
-            M = cv2.moments(cnt)  # Calculates moments of detected binary image
-            x, y, w, h = cv2.boundingRect(cnt)  # Calculates an upright bounding rectangle
-            cv2.drawContours(fgmask, [cnt], 0, (255, 255, 255), 3, maxLevel=0)
 
-            if h < w:
-                cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 0, 255),
-                              2)  # Puts red rectangle around fallen object
-                frameCount += 1
-                personDetected += 1
 
-            if frameCount > 150:  # After ~5 seconds (at 30 fps) of being fallen down; can be optimized
-                detectStatus = "FALL DETECTED"
-                print(detectStatus)  # Prints this every time a fall is detected
+        if(len(batch) > 32):
+            batch = batch[:32]
+            batch = np.array(batch)
 
-            if h > w:
-                start_point = (x, y)  # Gives reference for where person starts
-                cv2.rectangle(frame, start_point, (x + w, y + h), (0, 255, 0),
-                              2)  # Puts green rectangle around detected object
 
-                if movementCount == 0:  # Sets checkPoint to startPoint to keep track of original location
-                    checkPoint = start_point
 
-                frameCount = 0
-                personDetected += 1
-                movementCount += 1  # Increases movementCount so it can be tracked each second
+        if(len(batch) == 32):
 
-                if movementCount > 30 and checkPoint == start_point:
-                    movementState = "Not Moving"  # Updates state to No Movement if target does not move for one second
-                    movementCount = 0
 
-                if movementCount > 30 and checkPoint != start_point:
-                    movementState = "Moving"  # Updates state to Moving if target moves during the second
-                    movementCount = 0
 
-            if HUD:
-                cv2.putText(frame, "Status: {}".format(detectStatus), (10, 20), cv2.FONT_HERSHEY_DUPLEX, 0.8,
-                            (0, 0, 0), 1)
+            result_x = np.concatenate(batch, axis=0)
 
-            cv2.imshow("Video Frame", frame)  # Loads video frame window
-            done = True  # Video has successfully loaded
-            detectionTest += 1
 
-            key = cv2.waitKey(1) & 0xFF
-            if key == ord('q'):  # Press 'q' to terminate video feed
-                print("\nVIDEO TERMINATED")
-                percentageDetected = personDetected / detectionTest
-                print("{0:.2%}".format(percentageDetected), "of frames detected a person")
-                print("Final Movement State:", movementState, "\n")
-                camera.release()
-                cv2.destroyAllWindows()
-                break
 
+            x = result_x
+
+
+
+            res = sess.run(None, {input_name: x })
+
+            norm = softmax(res[0])
+
+
+
+
+
+
+            for x in norm:
+                fall = x.item(0)
+                not_fall = x.item(1)
+
+
+
+
+                print("predict", np.round(fall, decimals=3), np.round(not_fall, decimals=3))
+                if(fall > not_fall):
+                    print("fall detected")
+                    batch = []
+                    break
+
+                # here we are testing the appending of current frame to next frame
+            #batch = condense_batch[16::]
+            #condense_batch = []
+            #predict 0.516 0.484
+
+
+            #here we are doing just the regular current frame and then next frame is its own frame as well
+            batch = []
+            #predict 0.52 0.48
+
+
+        cv2.imshow("Video Feed", img2)
+
+
+
+
+        key = cv2.waitKey(1) & 0xFF
+        if key == ord('q'):  # Press 'q' to terminate video feed
+            print("VIDEO FEED TERMINATED")
+            camera.release()
+            cv2.destroyAllWindows()
+            break
     except Exception as e:
-        print(e)
+        print(e)# Can be edited
         break
