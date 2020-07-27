@@ -49,6 +49,7 @@ input_name = sess.get_inputs()[0].name
 
 batch_size = 32
 batch = []
+condense_batch = []
 
 
 
@@ -57,7 +58,7 @@ cameraPort = 0  # 0 is system's default webcam. 1 is an external webcam. -1 is a
 # cameraPort = input("What kind of webcam are you using?\nEnter 0 for a built-in webcam.\nEnter 1 for an external webcam.\n")
 # print("Loading...")
 #use this for accessing live video feed
-camera = cv2.VideoCapture(cameraPort)  # Initiates video stream and use to input mp4 to test
+camera = cv2.VideoCapture('fallcam1/fall30cam1.mp4')  # Initiates video stream and use to input mp4 to test
 
 #use this when using video input and change cameraPort to name of video file and the extension so nameofvideofile.mp4 for example
 #camera = cv2.VideoCapture(cameraPort)
@@ -104,10 +105,14 @@ color = np.random.randint(0,255,(100,3))
 
 count_frame = 0
 frame_counter = 0
+last_frame = 0
 while True:
     ret, frame = camera.read()
 
+
+
     count_frame +=1
+
 
 
 
@@ -119,15 +124,16 @@ while True:
     frame_x = frame
     img2 = np.zeros_like(frame)
     #use for video input
-    #frame = cv2.cvtColor(np.array(frame), cv2.COLOR_BGR2GRAY)
+    frame = cv2.cvtColor(np.array(frame), cv2.COLOR_BGR2GRAY)
     #use for live video access
-    frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    #frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
 
     img2[:,:,0] = frame
     img2[:,:,1] = frame
     img2[:,:,2] = frame
     frame = img2
+
     dim = (224, 256)
     dims = (256, 224, 3)
 
@@ -143,11 +149,11 @@ while True:
         resized = cv2.resize(frame, dim, interpolation = cv2.INTER_AREA )
         diff = cv2.absdiff(prev_frame, resized)
 
-        binary = (diff >= (.4 * 255)).astype(np.uint8)
+        binary = (diff >= (.41 * 255)).astype(np.uint8)
 
 
         mhi = binary + (binary == 0) * np.maximum(mhi_zeros,
-                                                      (prev_mhi-1/32))
+                                                      (prev_mhi-1/16))
 
         prev_frame = resized
         prev_mhi = mhi
@@ -163,6 +169,7 @@ while True:
     img2 = cv2.resize(img2, dim, interpolation = cv2.INTER_AREA)
     frames = np.expand_dims(img2, axis=0)
 
+
     frames = np.array(frames)
     frames = frames.astype(numpy.float32)
 
@@ -170,13 +177,22 @@ while True:
     image = torch.from_numpy(frames)
 
 
+
     image = image.permute(0, 3, 1, 2)
 
-    #This is for the append current frame to next frame
-    #if(count_frame == 1):
-     #   result = np.array(image)
+
+
+  #This is for the append current frame to next frame lines 185 to 192
+  #if(count_frame == 1):
+            #result = np.array(image)
+
     #elif(count_frame > 1 and count_frame %2 == 0):
-     #   result = np.array(image)
+        #result = np.array(image)
+
+    #condense = np.array(image)'''
+
+
+
 
      #this is for normal use current frame then empty and take next frame
     result = np.array(image)
@@ -189,6 +205,9 @@ while True:
 
         if( len(batch) != 32):
                 batch.append(result)
+
+                #only used for condensed-spaced model
+                #condense_batch.append(condense)
 
 
 
@@ -233,7 +252,8 @@ while True:
                     break
 
                 # here we are testing the appending of current frame to next frame
-            #batch = batch[31:15:-1]
+            #batch = condense_batch[16::]
+            #condense_batch = []
             #predict 0.516 0.484
 
 
