@@ -7,27 +7,24 @@ License: GNU GPLv3
 
 from sklearn.utils.extmath import softmax
 import cv2
-import onnx
-import onnxruntime as ort
+import itertools
 import numpy as np
 import numpy.random
+import onnx
+import onnxruntime as ort
 import sys
-import tensorflow as tf
+import threading
 import time
 import torch
-import torchvision
-import itertools
-import threading
 
 # Uncomment for debugging purposes.
 # print("onnx version:", onnx.__version__)
 # print("onnxruntime version:", ort.__version__)
 # print("opencv version:", cv2.__version__)
-# print("tensorflow version:", tf.__version__)
-# print("torchvision version:", torchvision.__version__)
+# print("torch version:", torch.__version__)
 
 
-# (Option 1) Use this for live video feed via a webcam.
+# (Video Option 1) Use this for live video feed via a webcam.
 # Press 'q' to terminate.
 class CameraSetUpLiveVideo:
     def __init__(self, port=-1):
@@ -39,7 +36,7 @@ class CameraSetUpLiveVideo:
         time.sleep(1)  # Gives the camera's auto-focus & auto-saturation time to load.
 
 
-# (Option 2) Use this for video file playback.
+# (Video Option 2) Use this for video file playback.
 # Video files will terminate once finished.
 class CameraSetUpVideoPlayBack:
     def __init__(self, path_to_video):
@@ -105,12 +102,12 @@ t.start()
 model = LoadModel()
 batchCreate = CreateBatch()
 
-# (Option 1) Use this class for live video feed.
+# (Video Option 1) Use this class for live video feed.
 # 0 = system's default webcam (recommended), 1 = external webcam, -1 = auto-detection
 # Only change argument for debugging purposes.
 # camera = CameraSetUpLiveVideo(0)
 
-# (Option 2) Use this class for video file playback.
+# (Video Option 2) Use this class for video file playback.
 # Change "fallcam0/fall1cam0.mp4" to the video file of your choice.
 # Refer to the adl, fallcam0, & fallcam1 dataset folders.
 camera = CameraSetUpVideoPlayBack("fallcam0/fall1cam0.mp4")
@@ -170,9 +167,9 @@ while True:
         result = np.array(image)
 
         if len(batchCreate.batch) != 32:
-            # not sure what's going on here
+            # (Model Option 1) Regular model
             batchCreate.batch.append(result)
-            # Uncomment only for condensed-spaced model if needed:
+            # (Model Option 2) Condensed-space model
             # condense_batch.append(condense)
 
         if len(batchCreate.batch) > 32:
@@ -188,6 +185,7 @@ while True:
             for x in norm:
                 fall = x.item(0)
                 notFall = x.item(1)
+                # FP = Fall Prediction, NFP = Non-Fall Prediction
                 print("FP", "{0:.2%}".format(fall), "NFP", "{0:.2%}".format(notFall))
                 if fall > notFall:
                     detectStatus = "FALL DETECTED"
@@ -195,15 +193,14 @@ while True:
                     batchCreate.batch = []
                     break
 
-            # tidy this please
-            # here we are testing Condensed-Spaced Model by appending of current frame to next frame
-            batchCreate.batch = batchCreate.condense_batch[16::]
-            batchCreate.condense_batch = []
+            # (Model Option 1) Regular model
+            # The current frame and next frame are separate.
+            batchCreate.batch = []
 
-            # also this
-            # here we are doing just testing the Regular Model current frame
-            # and then next frame never existing in same batch
-            # batchCreate.batch = []
+            # (Model Option 2) Condensed-space model
+            # Appends the the current frame to the next frame.
+            # batchCreate.batch = batchCreate.condense_batch[16::]
+            # batchCreate.condense_batch = []
 
         if HUD:
             if detectStatus == "FALL DETECTED":
@@ -215,6 +212,7 @@ while True:
 
         # (Default) Loads video frame window in grayscale:
         cv2.imshow("Video Feed", frame)
+
         # (Optional) Loads video frame window using background subtraction:
         # cv2.imshow("Background Subtraction", frameTransform.frame_transform)
 
