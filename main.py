@@ -5,284 +5,177 @@ Contributors: Jonah Falk, Samuel Pete, Normandy River, Niko Robbins, Jacob Schmo
 License: GNU GPLv3
 """
 
-import cv2
-import itertools
-import sys
-import threading
-import time
-
-import numpy.random
-
 from sklearn.utils.extmath import softmax
-
-
-print(cv2.__version__)
-import tensorflow as tf
-print("tf ", tf.__version__)
-
-
+import cv2
 import onnx
-import numpy as np
-print(onnx.__version__)
-
-
-import onnxruntime as rt
-print("onnxruntime: ", rt.__version__)
-
-import torch
-
-import torchvision
-print("torchvision ", torchvision.__version__)
 import onnxruntime as ort
+import numpy as np
+import numpy.random
+import sys
+import tensorflow as tf
+import time
+import torch
+import torchvision
+import itertools
+import threading
+
+# Uncomment for debugging purposes.
+# print("onnx version:", onnx.__version__)
+# print("onnxruntime version:", ort.__version__)
+# print("opencv version:", cv2.__version__)
+# print("tensorflow version:", tf.__version__)
+# print("torchvision version:", torchvision.__version__)
 
 
-import os
+def animate():
+    for c in itertools.cycle(['|', '/', '-', '\\']):
+        if done:
+            break
+        sys.stdout.write('\rLoading ' + c)
+        sys.stdout.flush()
+        time.sleep(0.1)
+    sys.stdout.write('\rFRIDA software loaded.\n')
 
 
+done = False  # Program hasn't yet loaded video.
+t = threading.Thread(target=animate)
+t.start()
 
+# Only change cameraPort for debugging purposes.
+cameraPort = 0  # 0 = system's default webcam (recommended), 1 = external webcam, -1 = auto-detection
+# Option 1: Use this for live video feed via a webcam. Press 'q' to terminate.
+camera = cv2.VideoCapture(cameraPort)
+# Option 2: Use this for a video file. Refer to the adl, fallcam0, & fallcam1 dataset folders.
+# The videos are short and will terminate once finished.
+# Make sure to comment out option 1 for VideoCapture (above) if used.
+# camera = cv2.VideoCapture('fallcam1/fall30cam1.mp4')
 
-
-onnx_model = onnx.load('model.onnx')
-
-
-model =cv2.dnn.readNetFromONNX('model.onnx')
-
-
-sess = ort.InferenceSession('model.onnx')
-input_name = sess.get_inputs()[0].name
-
-batch_size = 32
-batch = []
-condense_batch = []
-
-
-
-
-cameraPort = 0  # 0 is system's default webcam. 1 is an external webcam. -1 is auto-detection.
-# cameraPort = input("What kind of webcam are you using?\nEnter 0 for a built-in webcam.\nEnter 1 for an external webcam.\n")
-# print("Loading...")
-#use this for accessing live video feed
-camera = cv2.VideoCapture('fallcam1/fall30cam1.mp4')  # Initiates video stream and use to input mp4 to test
-
-#use this when using video input and change cameraPort to name of video file and the extension so nameofvideofile.mp4 for example
-#camera = cv2.VideoCapture(cameraPort)
-camera.set(cv2.CAP_PROP_FPS, 32) #set frames per second
+camera.set(cv2.CAP_PROP_FPS, 30)  # Sets frames per second (FPS).
 videoBrightness = 150
 camera.set(10, videoBrightness)
-time.sleep(1)  # Gives the camera's auto-focus & auto-saturation time to load
+time.sleep(1)  # Gives the camera's auto-focus & auto-saturation time to load.
 
-frameCount = 0  # Used to delay fall detection to prevent false positives
-HUD = 1  # Heads Up Display; set to 0 to turn off
-minArea = 50 * 50  # Minimum to accepted as a person; can be optimized
-movementCount = 0  # Keeps count of frames for movement updates
-movementState = "Not Moving"  # Starts out assuming person is standing still
-personDetected = 0  # Track amount of frames detected
-percentageDetected = 0  # Percentage of frames person is detected
+# Explain this group
+onnxModel = onnx.load('model.onnx')
+model = cv2.dnn.readNetFromONNX('model.onnx')
+sess = ort.InferenceSession('model.onnx')
 
+batch = []
+batchSize = 32
+color = np.random.randint(0, 255, (100, 3))
+condenseBatch = []
+countFrame = 0
+HUD = 1  # Heads Up Display. Set to 0 to turn off.
+inputName = sess.get_inputs()[0].name
+prevFrame = None
+prev_mhi = None
 
+if not camera.isOpened():
+    raise IOError("CANNOT OPEN WEBCAM")
 
-
-#if not camera.isOpened():
-    # if int(cameraPort) == 0:
-    #     try:
-    #         camera = cv2.VideoCapture(1)
-    #     except:
-    #         camera = cv2.VideoCapture(-1)
-    #         if not camera.isOpened():
-    #             print("WEBCAM NOT DETECTED")
-    # elif int(cameraPort) == 1:
-    #     try:
-    #         camera = cv2.VideoCapture(1)
-    #     except:
-    #         camera = cv2.VideoCapture(-1)
-    #         if not camera.isOpened():
-    #             print("WEBCAM NOT DETECTED")
-    # else:
-    #     print("ERROR. INPUT MUST BE 0 OR 1.")
-
-        #print("WEBCAM NOT DETECTED")
-
-#else:
-    # Returns confirmation to user if valid or error if invalid
-    # if int(cameraPort) == 0 or int(cameraPort) == 1:
-    #     print("Thank you. Webcam confirmed.")
-    # else:
-    #     print("ERROR. INPUT MUST BE 0 OR 1.")
-
-
-
-color = np.random.randint(0,255,(100,3))
-
-count_frame = 0
-frame_counter = 0
-last_frame = 0
 while True:
-    ret, frame = camera.read()
-
-
-
-    count_frame +=1
-
-
-
-
-
-
-
-
-
-    frame_x = frame
-    img2 = np.zeros_like(frame)
-    #use for video input
-    frame = cv2.cvtColor(np.array(frame), cv2.COLOR_BGR2GRAY)
-    #use for live video access
-    #frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-
-
-    img2[:,:,0] = frame
-    img2[:,:,1] = frame
-    img2[:,:,2] = frame
-    frame = img2
-
-    dim = (224, 256)
-    dims = (256, 224, 3)
-
-    mhi_zeros = np.zeros(dims)
-
-
-    if(count_frame == 1):
-
-        prev_frame  = cv2.resize(frame, dim, interpolation = cv2.INTER_AREA )
-        prev_mhi = mhi_zeros
-
-    else:
-        resized = cv2.resize(frame, dim, interpolation = cv2.INTER_AREA )
-        diff = cv2.absdiff(prev_frame, resized)
-
-        binary = (diff >= (.41 * 255)).astype(np.uint8)
-
-
-        mhi = binary + (binary == 0) * np.maximum(mhi_zeros,
-                                                      (prev_mhi-1/16))
-
-        prev_frame = resized
-        prev_mhi = mhi
-
-        img2 = mhi
-
-
-
-
-
-
-
-    img2 = cv2.resize(img2, dim, interpolation = cv2.INTER_AREA)
-    frames = np.expand_dims(img2, axis=0)
-
-
-    frames = np.array(frames)
-    frames = frames.astype(numpy.float32)
-
-
-    image = torch.from_numpy(frames)
-
-
-
-    image = image.permute(0, 3, 1, 2)
-
-
-
-  #This is for the append current frame to next frame lines 185 to 192
-  #if(count_frame == 1):
-            #result = np.array(image)
-
-    #elif(count_frame > 1 and count_frame %2 == 0):
-        #result = np.array(image)
-
-    #condense = np.array(image)'''
-
-
-
-
-     #this is for normal use current frame then empty and take next frame
-    result = np.array(image)
-
-
-
-
+    grabbed, frame = camera.read()
+    if not grabbed:
+        break
 
     try:
+        countFrame += 1
+        frame_x = frame
+        img2 = np.zeros_like(frame)
+        frame = cv2.cvtColor(np.array(frame), cv2.COLOR_BGR2GRAY)
+        img2[:, :, 0] = frame
+        img2[:, :, 1] = frame
+        img2[:, :, 2] = frame
+        frame = img2
+        dim = (224, 256)
+        dims = (256, 224, 3)
+        mhi_zeros = np.zeros(dims)
+        detectStatus = "Idle"
 
-        if( len(batch) != 32):
-                batch.append(result)
+        if countFrame == 1:
+            prevFrame = cv2.resize(frame, dim, interpolation=cv2.INTER_AREA)
+            prev_mhi = mhi_zeros
 
-                #only used for condensed-spaced model
-                #condense_batch.append(condense)
+        else:
+            resized = cv2.resize(frame, dim, interpolation=cv2.INTER_AREA)
+            diff = cv2.absdiff(prevFrame, resized)
+            binary = (diff >= (.41 * 255)).astype(np.uint8)
+            mhi = binary + (binary == 0) * np.maximum(mhi_zeros, (prev_mhi - 1 / 16))
+            prev_frame = resized
+            prev_mhi = mhi
+            img2 = mhi
 
+        img2 = cv2.resize(img2, dim, interpolation=cv2.INTER_AREA)
+        frames = np.expand_dims(img2, axis=0)
+        frames = np.array(frames)
+        frames = frames.astype(numpy.float32)
+        image = torch.from_numpy(frames)
+        image = image.permute(0, 3, 1, 2)
 
+        # This is for the append current frame to next frame
+        # if(countFrame == 1):
+        # result = np.array(image)
+        # elif(countFrame > 1 and countFrame %2 == 0):
+        # result = np.array(image)
+        # condense = np.array(image)'''
 
-        if(len(batch) > 32):
+        # This is for normal use current frame then empty and take next frame
+        result = np.array(image)
+
+        if len(batch) != 32:
+            batch.append(result)
+            # (Alternative) Only used for condensed-spaced model:
+            # condenseBatch.append(condense)
+
+        if len(batch) > 32:
             batch = batch[:32]
             batch = np.array(batch)
 
-
-
-        if(len(batch) == 32):
-
-
-
+        if len(batch) == 32:
             result_x = np.concatenate(batch, axis=0)
-
-
-
             x = result_x
-
-
-
-            res = sess.run(None, {input_name: x })
-
+            res = sess.run(None, {inputName: x})
             norm = softmax(res[0])
-
-
-
-
-
 
             for x in norm:
                 fall = x.item(0)
-                not_fall = x.item(1)
-
-
-
-
-                print("predict", np.round(fall, decimals=3), np.round(not_fall, decimals=3))
-                if(fall > not_fall):
-                    print("fall detected")
+                notFall = x.item(1)
+                # FP = Fall Prediction, NFP = Non-Fall Prediction
+                print("FP", "{0:.2%}".format(fall),
+                      "NFP", "{0:.2%}".format(notFall))
+                if fall > notFall:
+                    detectStatus = "FALL DETECTED"
+                    print(detectStatus)
                     batch = []
-                    break
 
-                # here we are testing the appending of current frame to next frame
-            #batch = condense_batch[16::]
-            #condense_batch = []
-            #predict 0.516 0.484
-
-
-            #here we are doing just the regular current frame and then next frame is its own frame as well
+            # (Default) Used for the regular current frame, then next frame is its own frame also:
             batch = []
-            #predict 0.52 0.48
+            # (Alternative) Used to test the appending of the current frame to the next frame:
+            # batch = condenseBatch[16::]
+            # condenseBatch = []
 
+        if HUD:
+            if detectStatus == "FALL DETECTED":
+                cv2.putText(frame, "Status: {}".format(detectStatus), (10, 20),
+                            cv2.FONT_HERSHEY_DUPLEX, 0.8, (0, 0, 255), 1)
+            else:
+                cv2.putText(frame, "Status: {}".format(detectStatus), (10, 20),
+                            cv2.FONT_HERSHEY_DUPLEX, 0.8, (0, 128, 0), 1)
 
-        cv2.imshow("Video Feed", img2)
+        # (Default) Loads video frame window in grayscale:
+        cv2.imshow("Video Feed", frame)
+        # (Optional) Loads video frame window using background subtraction:
+        # cv2.imshow("Background Subtraction", img2)
 
-
-
+        done = True  # Video has successfully loaded.
 
         key = cv2.waitKey(1) & 0xFF
-        if key == ord('q'):  # Press 'q' to terminate video feed
-            print("VIDEO FEED TERMINATED")
+        if key == ord('q'):
+            print("\nVIDEO FEED TERMINATED\n")
             camera.release()
             cv2.destroyAllWindows()
             break
+
     except Exception as e:
-        print(e)# Can be edited
+        print(e)
         break
