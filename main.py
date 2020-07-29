@@ -17,7 +17,7 @@ import threading
 import time
 import torch
 
-# Uncomment for debugging purposes.
+# Uncomment for debugging purposes:
 # print("onnx version:", onnx.__version__)
 # print("onnxruntime version:", ort.__version__)
 # print("opencv version:", cv2.__version__)
@@ -27,7 +27,7 @@ import torch
 # (Video Option 1) Use this for live video feed via a webcam.
 # Press 'q' to terminate.
 class CameraSetUpLiveVideo:
-    def __init__(self, port=-1):
+    def __init__(self, port):
         self.cameraPort = port
         self.camera = cv2.VideoCapture(self.cameraPort)
         self.camera.set(cv2.CAP_PROP_FPS, 32)  # Sets frames per second (FPS).
@@ -105,12 +105,12 @@ batchCreate = CreateBatch()
 # (Video Option 1) Use this class for live video feed.
 # 0 = system's default webcam (recommended), 1 = external webcam, -1 = auto-detection
 # Only change argument for debugging purposes.
-# camera = CameraSetUpLiveVideo(0)
+camera = CameraSetUpLiveVideo(0)
 
 # (Video Option 2) Use this class for video file playback.
 # Change "fallcam0/fall1cam0.mp4" to the video file of your choice.
 # Refer to the adl, fallcam0, & fallcam1 dataset folders.
-camera = CameraSetUpVideoPlayBack("fallcam0/fall1cam0.mp4")
+# camera = CameraSetUpVideoPlayBack("fallcam0/fall1cam0.mp4")
 
 color = np.random.randint(0, 255, (100, 3))
 countFrame = 0
@@ -170,7 +170,7 @@ while True:
             # (Model Option 1) Regular model
             batchCreate.batch.append(result)
             # (Model Option 2) Condensed-space model
-            # condense_batch.append(condense)
+            # batchCreate.condense_batch.append(batchCreate.condense)
 
         if len(batchCreate.batch) > 32:
             batchCreate.batch = batchCreate.batch[:32]
@@ -194,20 +194,20 @@ while True:
                     break
 
             # (Model Option 1) Regular model
-            # The current frame and next frame are separate.
+            # The current frame and the next frame are separate.
             batchCreate.batch = []
 
             # (Model Option 2) Condensed-space model
-            # Appends the the current frame to the next frame.
+            # Appends the current frame to the next frame.
             # batchCreate.batch = batchCreate.condense_batch[16::]
             # batchCreate.condense_batch = []
 
         if HUD:
             if detectStatus == "FALL DETECTED":
-                cv2.putText(frameTransform.frame_transform, "Status: {}".format(detectStatus),
+                cv2.putText(frame, "Status: {}".format(detectStatus),
                             (10, 20), cv2.FONT_HERSHEY_DUPLEX, 0.8, (0, 0, 255), 1)
             else:
-                cv2.putText(frameTransform.frame_transform, "Status: {}".format(detectStatus),
+                cv2.putText(frame, "Status: {}".format(detectStatus),
                             (10, 20), cv2.FONT_HERSHEY_DUPLEX, 0.8, (0, 128, 0), 1)
 
         # (Default) Loads video frame window in grayscale:
