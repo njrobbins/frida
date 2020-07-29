@@ -3,8 +3,10 @@ Fall Rate Identification, Detection, & Analysis (FRIDA) program
 For CSC 450 Course Project at Missouri State University
 Contributors: Jonah Falk, Samuel Pete, Normandy River, Niko Robbins, Jacob Schmoll
 License: GNU GPLv3
+Regular Model
 """
 
+# SRS: SIR.1, SIR.2, SIR.3
 import cv2
 import itertools
 import numpy as np
@@ -24,6 +26,7 @@ import torch
 # print("torch version:", torch.__version__)
 
 
+# SDD:
 class LoadModel:
     def __init__(self):
         self.onnx_model = onnx.load('model.onnx')
@@ -34,8 +37,10 @@ class LoadModel:
 
 # (Video Option 1) Use this for live video feed via a webcam.
 # Press 'q' to terminate.
+# SDD:
+# SRS: 3.1.3, UI.2
 class CameraSetUpLiveVideo:
-    def __init__(self, port):
+    def __init__(self, port=-1):
         self.cameraPort = port
         self.camera = cv2.VideoCapture(self.cameraPort)
         self.camera.set(cv2.CAP_PROP_FPS, 32)  # Sets frames per second (FPS).
@@ -46,6 +51,8 @@ class CameraSetUpLiveVideo:
 
 # (Video Option 2) Use this for video file playback.
 # Video files will terminate once finished.
+# SDD:
+# SRS: 3.1.20, UI.2
 class CameraSetUpVideoPlayBack:
     def __init__(self, path_to_video):
         self.path_to_video = path_to_video
@@ -56,12 +63,16 @@ class CameraSetUpVideoPlayBack:
         time.sleep(1)  # Gives the camera's auto-focus & auto-saturation time to load.
 
 
+# SDD:
+# SRS: 3.2.13
 class TransformShape:
     def __init__(self, frame):
         self.frame = frame
         self.frame_transform = np.zeros_like(self.frame)
 
 
+# SDD:
+# SRS: 3.2.13
 class MotionHistoryTransform:
     dim = (224, 256)
 
@@ -73,12 +84,16 @@ class MotionHistoryTransform:
         self.prev_frame = cv2.resize(self.frame, self.dim, interpolation=cv2.INTER_AREA)
 
 
+# SDD:
+# SRS: 3.2.13
 class MotionHistoryDifference:
     def __init__(self, frame):
         self.frame = frame
         self.resized = cv2.resize(self.frame, MotionHistoryTransform.dim, interpolation=cv2.INTER_AREA)
 
 
+# SDD:
+# SRS: 3.2.13
 class CreateBatch:
     def __init__(self):
         self.batch_size = 32
@@ -86,6 +101,7 @@ class CreateBatch:
         self.condense_batch = []
 
 
+# SRS: CIR.1
 def animate():
     for c in itertools.cycle(['|', '/', '-', '\\']):
         if done:
@@ -106,12 +122,12 @@ batchCreate = CreateBatch()
 # (Video Option 1) Use this class for live video feed.
 # 0 = system's default webcam (recommended), 1 = external webcam, -1 = auto-detection
 # Only change argument for debugging purposes.
-camera = CameraSetUpLiveVideo(0)
+# camera = CameraSetUpLiveVideo(0)
 
 # (Video Option 2) Use this class for video file playback.
 # Change "fallcam0/fall1cam0.mp4" to the video file of your choice.
 # Refer to the adl, fallcam0, & fallcam1 dataset folders.
-# camera = CameraSetUpVideoPlayBack("fallcam0/fall1cam0.mp4")
+camera = CameraSetUpVideoPlayBack("fallcam0/fall1cam0.mp4")
 
 color = np.random.randint(0, 255, (100, 3))
 countFrame = 0
@@ -119,10 +135,12 @@ HUD = 1  # Heads Up Display for live video feed. Set to 0 to turn off.
 mhi_maker = None
 prev_mhi = None
 
+# SRS: 3.1.3, 3.1.20, CIR.1
 if not camera.camera.isOpened():
-    raise IOError("CANNOT OPEN WEBCAM")
+    raise IOError("CANNOT LOAD VIDEO FRAME")
 
 while True:
+    # SRS: 3.1.3, 3.1.20
     grabbed, frame = camera.camera.read()
     if not grabbed:
         break
@@ -177,8 +195,10 @@ while True:
             for x in norm:
                 fall = x.item(0)
                 notFall = x.item(1)
+                # SRS: CIR.1
                 # FP = Fall Prediction, NFP = Non-Fall Prediction
                 print("FP", "{0:.2%}".format(fall), "NFP", "{0:.2%}".format(notFall))
+                # SRS: 3.1.6, 3.1.22, CIR.1, CIR.2
                 if fall > notFall:
                     detectStatus = "FALL DETECTED"
                     print(detectStatus)
@@ -188,22 +208,26 @@ while True:
             # The current frame and the next frame are separate.
             batchCreate.batch = []
 
+        # SRS: CIR.2
         if HUD:
-            if detectStatus == "FALL DETECTED":
+            if detectStatus == "\nFALL DETECTED\n":
                 cv2.putText(frame, "Status: {}".format(detectStatus),
                             (10, 20), cv2.FONT_HERSHEY_DUPLEX, 0.8, (0, 0, 255), 1)
             else:
                 cv2.putText(frame, "Status: {}".format(detectStatus),
                             (10, 20), cv2.FONT_HERSHEY_DUPLEX, 0.8, (0, 128, 0), 1)
 
-        # (Default) Loads video frame window in grayscale:
+        # (Default) Loads video frame window in grayscale.
+        # SRS: UI.2
         cv2.imshow("Video Feed", frame)
 
-        # (Optional) Loads video frame window using background subtraction:
+        # (Optional) Loads video frame window using background subtraction.
+        # SRS: UI.2
         # cv2.imshow("Background Subtraction", frameTransform.frame_transform)
 
         done = True  # Video has successfully loaded.
 
+        # SRS: CIR.1, CIR.3
         key = cv2.waitKey(1) & 0xFF
         if key == ord('q'):
             print("\nVIDEO FEED TERMINATED\n")
@@ -211,6 +235,7 @@ while True:
             cv2.destroyAllWindows()
             break
 
+    # SRS: CIR.1
     except Exception as e:
         print(e)
         break

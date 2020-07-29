@@ -3,6 +3,7 @@ Fall Rate Identification, Detection, & Analysis (FRIDA) program
 For CSC 450 Course Project at Missouri State University
 Contributors: Jonah Falk, Samuel Pete, Normandy River, Niko Robbins, Jacob Schmoll
 License: GNU GPLv3
+Condensed-Space Model
 """
 
 import cv2
@@ -120,7 +121,7 @@ mhi_maker = None
 prev_mhi = None
 
 if not camera.camera.isOpened():
-    raise IOError("CANNOT OPEN WEBCAM")
+    raise IOError("CANNOT LOAD VIDEO FRAME")
 
 while True:
     grabbed, frame = camera.camera.read()
