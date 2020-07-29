@@ -5,23 +5,31 @@ Contributors: Jonah Falk, Samuel Pete, Normandy River, Niko Robbins, Jacob Schmo
 License: GNU GPLv3
 """
 
-from sklearn.utils.extmath import softmax
 import cv2
 import itertools
 import numpy as np
 import numpy.random
 import onnx
 import onnxruntime as ort
+from sklearn.utils.extmath import softmax
 import sys
 import threading
 import time
 import torch
 
 # Uncomment for debugging purposes:
+# print("opencv version:", cv2.__version__)
 # print("onnx version:", onnx.__version__)
 # print("onnxruntime version:", ort.__version__)
-# print("opencv version:", cv2.__version__)
 # print("torch version:", torch.__version__)
+
+
+class LoadModel:
+    def __init__(self):
+        self.onnx_model = onnx.load('model.onnx')
+        self.model = cv2.dnn.readNetFromONNX('model.onnx')
+        self.sess = ort.InferenceSession('model.onnx')
+        self.input_name = self.sess.get_inputs()[0].name
 
 
 # (Video Option 1) Use this for live video feed via a webcam.
@@ -48,25 +56,10 @@ class CameraSetUpVideoPlayBack:
         time.sleep(1)  # Gives the camera's auto-focus & auto-saturation time to load.
 
 
-class CreateBatch:
-    def __init__(self):
-        self.batch_size = 32
-        self.batch = []
-        self.condense_batch = []
-
-
-class LoadModel:
-    def __init__(self):
-        self.onnx_model = onnx.load('model.onnx')
-        self.model = cv2.dnn.readNetFromONNX('model.onnx')
-        self.sess = ort.InferenceSession('model.onnx')
-        self.input_name = self.sess.get_inputs()[0].name
-
-
-class MotionHistoryDifference:
+class TransformShape:
     def __init__(self, frame):
         self.frame = frame
-        self.resized = cv2.resize(self.frame, MotionHistoryTransform.dim, interpolation=cv2.INTER_AREA)
+        self.frame_transform = np.zeros_like(self.frame)
 
 
 class MotionHistoryTransform:
@@ -80,10 +73,17 @@ class MotionHistoryTransform:
         self.prev_frame = cv2.resize(self.frame, self.dim, interpolation=cv2.INTER_AREA)
 
 
-class TransformShape:
+class MotionHistoryDifference:
     def __init__(self, frame):
         self.frame = frame
-        self.frame_transform = np.zeros_like(self.frame)
+        self.resized = cv2.resize(self.frame, MotionHistoryTransform.dim, interpolation=cv2.INTER_AREA)
+
+
+class CreateBatch:
+    def __init__(self):
+        self.batch_size = 32
+        self.batch = []
+        self.condense_batch = []
 
 
 def animate():
