@@ -99,7 +99,8 @@ def animate():
 done = False  # Program hasn't yet loaded video.
 t = threading.Thread(target=animate)
 t.start()
-model = LoadModel()
+
+regularModel = LoadModel()
 batchCreate = CreateBatch()
 
 # (Video Option 1) Use this class for live video feed.
@@ -157,20 +158,11 @@ while True:
         image = image.permute(0, 3, 1, 2)
         detectStatus = "Idle"
 
-        if countFrame == 1:
-            result = np.array(image)
-
-        elif countFrame > 1 and countFrame % 2 == 0:
-            result = np.array(image)
-
-        batchCreate.condense = np.array(image)
+        # Uses the current frame, empties it, & takes the next frame.
         result = np.array(image)
 
         if len(batchCreate.batch) != 32:
-            # (Model Option 1) Regular model
             batchCreate.batch.append(result)
-            # (Model Option 2) Condensed-space model
-            # batchCreate.condense_batch.append(batchCreate.condense)
 
         if len(batchCreate.batch) > 32:
             batchCreate.batch = batchCreate.batch[:32]
@@ -179,7 +171,7 @@ while True:
         if len(batchCreate.batch) == 32:
             result_x = np.concatenate(batchCreate.batch, axis=0)
             model_input_x = result_x
-            res = model.sess.run(None, {model.input_name: model_input_x})
+            res = regularModel.sess.run(None, {regularModel.input_name: model_input_x})
             norm = softmax(res[0])
 
             for x in norm:
@@ -193,14 +185,8 @@ while True:
                     batchCreate.batch = []
                     break
 
-            # (Model Option 1) Regular model
             # The current frame and the next frame are separate.
             batchCreate.batch = []
-
-            # (Model Option 2) Condensed-space model
-            # Appends the current frame to the next frame.
-            # batchCreate.batch = batchCreate.condense_batch[16::]
-            # batchCreate.condense_batch = []
 
         if HUD:
             if detectStatus == "FALL DETECTED":
