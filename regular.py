@@ -6,6 +6,7 @@ License: GNU GPLv3
 Regular Model
 """
 
+# SDD: 2.2, 3.0, 3.1, 3.2, 3.2.1, 3.2.3, 3.2.3.5, 3.2.3.5.1, 3.3
 # SRS: SIR.1, SIR.2, SIR.3
 import cv2
 import itertools
@@ -26,7 +27,7 @@ import torch
 # print("torch version:", torch.__version__)
 
 
-# SDD:
+# SDD: 2.2, 3.0, 3.1, 3.2, 3.2.1, 3.2.3, 3.2.3.5, 3.2.3.5.1, 3.3
 class LoadModel:
     def __init__(self):
         self.onnx_model = onnx.load('model.onnx')
@@ -37,7 +38,7 @@ class LoadModel:
 
 # (Video Option 1) Use this for live video feed via a webcam.
 # Press 'q' to terminate.
-# SDD:
+# SDD: 2.2, 3.0, 3.1, 3.2, 3.2.1, 3.2.3, 3.2.3.5, 3.2.3.5.1, 3.3
 # SRS: 3.1.3, UI.2
 class CameraSetUpLiveVideo:
     def __init__(self, port=-1):
@@ -51,7 +52,7 @@ class CameraSetUpLiveVideo:
 
 # (Video Option 2) Use this for video file playback.
 # Video files will terminate once finished.
-# SDD:
+# SDD: 2.2, 3.0, 3.1, 3.2, 3.2.1, 3.2.3, 3.2.3.5, 3.2.3.5.1, 3.3
 # SRS: 3.1.20, UI.2
 class CameraSetUpVideoPlayBack:
     def __init__(self, path_to_video):
@@ -63,7 +64,7 @@ class CameraSetUpVideoPlayBack:
         time.sleep(1)  # Gives the camera's auto-focus & auto-saturation time to load.
 
 
-# SDD:
+# SDD: 2.2, 3.0, 3.1, 3.2, 3.2.1, 3.2.3, 3.2.3.5, 3.2.3.5.1, 3.3
 # SRS: 3.2.13
 class TransformShape:
     def __init__(self, frame):
@@ -71,7 +72,7 @@ class TransformShape:
         self.frame_transform = np.zeros_like(self.frame)
 
 
-# SDD:
+# SDD: 2.2, 3.0, 3.1, 3.2, 3.2.1, 3.2.3, 3.2.3.5, 3.2.3.5.1, 3.3
 # SRS: 3.2.13
 class MotionHistoryTransform:
     dim = (224, 256)
@@ -84,7 +85,7 @@ class MotionHistoryTransform:
         self.prev_frame = cv2.resize(self.frame, self.dim, interpolation=cv2.INTER_AREA)
 
 
-# SDD:
+# SDD: 2.2, 3.0, 3.1, 3.2, 3.2.1, 3.2.3, 3.2.3.5, 3.2.3.5.1, 3.3
 # SRS: 3.2.13
 class MotionHistoryDifference:
     def __init__(self, frame):
@@ -92,7 +93,7 @@ class MotionHistoryDifference:
         self.resized = cv2.resize(self.frame, MotionHistoryTransform.dim, interpolation=cv2.INTER_AREA)
 
 
-# SDD:
+# SDD: 2.2, 3.0, 3.1, 3.2, 3.2.1, 3.2.3, 3.2.3.5, 3.2.3.5.1, 3.3
 # SRS: 3.2.13
 class CreateBatch:
     def __init__(self):
@@ -148,6 +149,7 @@ while True:
     try:
         countFrame += 1
         frameTransform = TransformShape(frame)
+        # SDD: 3.2.3.5, 3.2.3.5.1
         frame = cv2.cvtColor(np.array(frame), cv2.COLOR_BGR2GRAY)
         frameTransform.frame_transform[:, :, 0] = frame
         frameTransform.frame_transform[:, :, 1] = frame
@@ -160,13 +162,13 @@ while True:
 
         else:
             mhi_difference_maker = MotionHistoryDifference(frame)
+            # SDD: 3.2.3.5, 3.2.3.5.1
             diff = cv2.absdiff(mhi_maker.prev_frame, mhi_difference_maker.resized)
             binary = (diff >= (.41 * 255)).astype(np.uint8)
             mhi = binary + (binary == 0) * np.maximum(mhi_maker.mhi_zeros, (prev_mhi - 1 / 16))
             mhi_maker.prev_frame = mhi_difference_maker.resized
             prev_mhi = mhi
             frameTransform.frame_transform = mhi
-
         frameTransform.frame_transform = cv2.resize(frameTransform.frame_transform,
                                                     MotionHistoryTransform.dim, interpolation=cv2.INTER_AREA)
         frames = np.expand_dims(frameTransform.frame_transform, axis=0)
@@ -210,7 +212,7 @@ while True:
 
         # SRS: CIR.2
         if HUD:
-            if detectStatus == "\nFALL DETECTED\n":
+            if detectStatus == "FALL DETECTED":
                 cv2.putText(frame, "Status: {}".format(detectStatus),
                             (10, 20), cv2.FONT_HERSHEY_DUPLEX, 0.8, (0, 0, 255), 1)
             else:
@@ -218,15 +220,18 @@ while True:
                             (10, 20), cv2.FONT_HERSHEY_DUPLEX, 0.8, (0, 128, 0), 1)
 
         # (Default) Loads video frame window in grayscale.
+        # SDD: 3.2.3.5, 3.2.3.5.1
         # SRS: UI.2
         cv2.imshow("Video Feed", frame)
 
         # (Optional) Loads video frame window using background subtraction.
+        # SDD: 3.2.3.5, 3.2.3.5.1
         # SRS: UI.2
         # cv2.imshow("Background Subtraction", frameTransform.frame_transform)
 
         done = True  # Video has successfully loaded.
 
+        # SDD: 3.2.3.5, 3.2.3.5.1
         # SRS: CIR.1, CIR.3
         key = cv2.waitKey(1) & 0xFF
         if key == ord('q'):
@@ -235,7 +240,6 @@ while True:
             cv2.destroyAllWindows()
             break
 
-    # SRS: CIR.1
     except Exception as e:
         print(e)
         break
